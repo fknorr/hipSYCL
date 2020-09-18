@@ -74,6 +74,12 @@ hip_queue::hip_queue(device_id dev) : _dev{dev} {
                    error_info{"hip_queue: Couldn't construct backend stream",
                               error_code{"HIP", err}});
   }
+
+  auto ref_event = insert_event(); // TODO virtual -> final?
+  ref_event->wait();
+  _timing_ref = hip_node_event::timing_ref{
+      std::chrono::steady_clock::now(),
+      std::shared_ptr<hip_node_event>(cast<hip_node_event>(ref_event.release())),
 }
 
 hipStream_t hip_queue::get_stream() const { return _stream; }
@@ -109,7 +115,7 @@ std::unique_ptr<dag_node_event> hip_queue::insert_event() {
     return nullptr;
   }
 
-  return std::make_unique<hip_node_event>(_dev, evt);
+  return std::make_unique<hip_node_event>(_dev, evt, &_timing_ref);
 }
 
 result hip_queue::submit_memcpy(const memcpy_operation & op) {

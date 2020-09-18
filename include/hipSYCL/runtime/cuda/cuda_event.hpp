@@ -40,19 +40,27 @@ namespace rt {
 class cuda_node_event : public dag_node_event
 {
 public:
+  struct timing_ref
+  {
+    clock::time_point ref_time_point{};
+    std::shared_ptr<cuda_node_event> ref_event{};
+  };
+
   /// Takes ownership of supplied hipEvent_t. \c evt Must
   /// have been properly initialized and recorded.
-  cuda_node_event(device_id dev, CUevent_st* evt);
+  cuda_node_event(device_id dev, CUevent_st *evt, const timing_ref *ref);
   ~cuda_node_event();
 
   virtual bool is_complete() const override;
   virtual void wait() override;
+  virtual std::optional<clock::time_point> get_completion_time() const override;
 
   CUevent_st* get_event() const;
   device_id get_device() const;
 private:
   device_id _dev;
   CUevent_st* _evt;
+  const timing_ref *_ref;
 };
 
 }

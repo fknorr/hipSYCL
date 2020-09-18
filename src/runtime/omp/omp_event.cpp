@@ -30,24 +30,52 @@
 namespace hipsycl {
 namespace rt {
 
+bool omp_node_event::completion_flag::is_complete() const {
+  return _atomic_timestamp.load(std::memory_order_acquire) != _incomplete_timestamp;
+}
+
+std::optional<std::chrono::steady_clock::time_point> omp_node_event::completion_flag::completion_time() const {
+  auto timestamp = _atomic_timestamp.load(std::memory_order_acquire);
+  if (timestamp != _incomplete_timestamp) {
+    return time_point(duration(timestamp));
+  } else {
+    return std::nullopt;
+  }
+}
+
+void omp_node_event::completion_flag::complete_now() {
+  auto timestamp = clock::now().time_since_epoch().count();
+  if (timestamp == _incomplete_timestamp) {
+    ++timestamp;
+  }
+  auto expected = _incomplete_timestamp;
+  _atomic_timestamp.compare_exchange_strong(expected, timestamp, std::memory_order_release,
+      std::memory_order_relaxed);
+}
+
 omp_node_event::omp_node_event()
-: _is_complete{std::make_shared<std::atomic<bool>>(false)}
+: _completion{std::make_shared<completion_flag>()}
 {}
 
 omp_node_event::~omp_node_event()
 {}
 
 bool omp_node_event::is_complete() const {
-  return _is_complete->load();
+  return _completion->is_complete();
 }
 
 void omp_node_event::wait() {
-  while(!_is_complete->load()) ;
+  while(!_completion->is_complete()) ;
 }
 
-std::shared_ptr<std::atomic<bool>> 
+std::shared_ptr<omp_node_event::completion_flag>
 omp_node_event::get_completion_flag() const {
-  return _is_complete;
+  return _completion;
+}
+
+std::optional<omp_node_event::clock::time_point> omp_node_event::get_completion_time() const
+{
+  return _completion->completion_time();
 }
 
 }

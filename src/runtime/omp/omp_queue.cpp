@@ -85,7 +85,7 @@ std::unique_ptr<dag_node_event> omp_queue::insert_event() {
   auto completion_flag = evt->get_completion_flag();
 
   _worker([completion_flag]{
-    completion_flag->store(true);
+    completion_flag->complete_now();
   });
 
   return evt;

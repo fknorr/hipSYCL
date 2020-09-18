@@ -38,19 +38,27 @@ namespace rt {
 class hip_node_event : public dag_node_event
 {
 public:
+  struct timing_ref
+  {
+    clock::time_point ref_time_point{};
+    std::shared_ptr<hip_node_event> ref_event{};
+  };
+
   /// Takes ownership of supplied hipEvent_t. \c evt Must
   /// have been properly initialized and recorded.
-  hip_node_event(device_id dev, hipEvent_t evt);
+  hip_node_event(device_id dev, hipEvent_t evt, const timing_ref *ref);
   ~hip_node_event();
 
   virtual bool is_complete() const override;
   virtual void wait() override;
+  virtual std::optional<clock::time_point> get_completion_time() const override;
 
   hipEvent_t get_event() const;
   device_id get_device() const;
 private:
   device_id _dev;
   hipEvent_t _evt;
+  const timing_ref *_ref;
 };
 
 }

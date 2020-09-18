@@ -32,8 +32,8 @@ namespace hipsycl {
 namespace rt {
 
 
-hip_node_event::hip_node_event(device_id dev, hipEvent_t evt)
-: _dev{dev}, _evt{evt}
+hip_node_event::hip_node_event(device_id dev, hipEvent_t evt, const timing_ref *ref)
+: _dev{dev}, _evt{evt}, _ref(ref)
 {}
 
 hip_node_event::~hip_node_event()
@@ -65,6 +65,20 @@ void hip_node_event::wait()
                    error_info{"hip_node_event: hipEventSynchronize() failed",
                               error_code{"HIP", err}});
   }
+}
+
+std::optional<hip_node_event::clock::time_point> hip_node_event::get_completion_time() const
+{
+  assert(_ref != nullptr);
+  float ms = 0;
+  auto err = hipEventElapsedTime(&ms, _ref->ref_event, _evt);
+  if (err != hipSuccess) {
+    register_error(__hipsycl_here(),
+        error_info{"hip_node_event: hipEventElapsedTime() failed",
+            error_code{"CUDA", err}});
+  }
+  auto elapsed = std::chrono::duration_cast<clock::duration>(std::chrono::duration<float, std::milli>(ms));
+  return _ref->ref_time_point + elapsed;
 }
 
 hipEvent_t hip_node_event::get_event() const

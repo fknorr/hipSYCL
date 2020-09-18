@@ -86,6 +86,10 @@ public:
   // until the event exists.
   void wait() const;
 
+  dag_node_event::clock::time_point get_submission_time() const;
+  dag_node_event::clock::time_point get_launch_time() const;
+  dag_node_event::clock::time_point get_completion_time() const;
+
   bool has_node_id() const;
   std::size_t get_node_id() const;
 
@@ -105,6 +109,7 @@ private:
   std::shared_ptr<dag_node_event> _event;
   std::unique_ptr<operation> _operation;
 
+  std::chrono::steady_clock::time_point _submission_time; // synchronized on _is_submitted
   std::atomic<bool> _is_submitted;
   mutable std::atomic<bool> _is_complete;
   std::atomic<bool> _is_cancelled;

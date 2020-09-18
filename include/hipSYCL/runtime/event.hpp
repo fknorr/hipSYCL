@@ -31,14 +31,19 @@
 #include "device_id.hpp"
 #include "error.hpp"
 
+#include <chrono>
+
 namespace hipsycl {
 namespace rt {
 
 class dag_node_event
 {
 public:
+  using clock = std::chrono::steady_clock;
+
   virtual bool is_complete() const = 0;
   virtual void wait() = 0;
+  virtual std::optional<clock::time_point> get_completion_time() const = 0;
   virtual ~dag_node_event() {}
 }; 
 

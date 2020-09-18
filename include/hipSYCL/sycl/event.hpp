@@ -122,7 +122,22 @@ public:
 
   template <info::event_profiling param>
   typename info::param_traits<info::event_profiling, param>::return_type get_profiling_info() const
-  { throw unimplemented{"event::get_profiling_info() is unimplemented."}; }
+  {
+    const_cast<event*>(this)->wait(); // TODO wrong at least for command_submit
+    std::chrono::steady_clock::time_point tp;
+    switch(param) {
+      case info::event_profiling::command_submit:
+        tp = _node->get_submission_time();
+        break;
+      case info::event_profiling::command_start:
+        tp = _node->get_launch_time();
+        break;
+      case info::event_profiling::command_end:
+        tp = _node->get_completion_time();
+        break;
+    }
+    return std::chrono::duration_cast<std::chrono::nanoseconds>(tp.time_since_epoch()).count();
+  }
 
   friend bool operator ==(const event& lhs, const event& rhs)
   { return lhs._node == rhs._node; }

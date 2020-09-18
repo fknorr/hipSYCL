@@ -65,6 +65,14 @@ using queue_submission_hooks_ptr =
 
 }
 
+namespace property {
+namespace queue {
+
+struct enable_profiling : public detail::property
+{};
+
+}
+}
 
 class queue : public detail::property_carrying_object
 {

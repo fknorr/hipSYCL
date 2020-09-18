@@ -31,6 +31,7 @@
 #include "../executor.hpp"
 #include "../inorder_queue.hpp"
 #include "hip_target.hpp"
+#include "hip_event.hpp"
 
 namespace hipsycl {
 namespace rt {
@@ -62,6 +63,7 @@ private:
   
   device_id _dev;
   hipStream_t _stream;
+  hip_node_event::timing_ref _timing_ref;
 };
 
 }

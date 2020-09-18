@@ -34,8 +34,8 @@ namespace hipsycl {
 namespace rt {
 
 
-cuda_node_event::cuda_node_event(device_id dev, CUevent_st* evt)
-: _dev{dev}, _evt{evt}
+cuda_node_event::cuda_node_event(device_id dev, CUevent_st* evt, const timing_ref *ref)
+: _dev{dev}, _evt{evt}, _ref(ref)
 {}
 
 cuda_node_event::~cuda_node_event()
@@ -67,6 +67,20 @@ void cuda_node_event::wait()
                    error_info{"cuda_node_event: cudaEventSynchronize() failed",
                               error_code{"CUDA", err}});
   }
+}
+
+std::optional<cuda_node_event::clock::time_point> cuda_node_event::get_completion_time() const
+{
+  assert(_ref != nullptr);
+  float ms = 0;
+  auto err = cudaEventElapsedTime(&ms, _ref->ref_event->get_event(), _evt);
+  if (err != cudaSuccess) {
+    register_error(__hipsycl_here(),
+        error_info{"cuda_node_event: cudaEventElapsedTime() failed",
+            error_code{"CUDA", err}});
+  }
+  auto elapsed = std::chrono::duration_cast<clock::duration>(std::chrono::duration<float, std::milli>(ms));
+  return _ref->ref_time_point + elapsed;
 }
 
 CUevent_st* cuda_node_event::get_event() const

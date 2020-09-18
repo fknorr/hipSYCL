@@ -69,6 +69,7 @@ bool dag_node::is_virtual() const { return _is_virtual; }
 void dag_node::mark_submitted(std::shared_ptr<dag_node_event> completion_evt)
 {
   this->_event = std::move(completion_evt);
+  this->_submission_time = std::chrono::steady_clock::now();
   this->_is_submitted = true;
 }
 
@@ -82,7 +83,7 @@ void dag_node::mark_virtually_submitted()
   }
   mark_submitted(std::make_shared<dag_multi_node_event>(events));
 }
-    
+
 void dag_node::cancel() {
   mark_virtually_submitted();
   this->_is_complete = true;
@@ -143,6 +144,22 @@ void dag_node::wait() const
 
   _event->wait();
   _is_complete = true;
+}
+
+dag_node_event::clock::time_point dag_node::get_submission_time() const {
+  while (!_is_submitted);
+  return _submission_time;
+}
+
+dag_node_event::clock::time_point dag_node::get_launch_time() const {
+  return get_submission_time(); // TODO schedule an extra event before the kernel, then time it here
+}
+
+dag_node_event::clock::time_point dag_node::get_completion_time() const {
+  wait();
+  auto time = _event->get_completion_time();
+  assert(time != std::nullopt);
+  return *time;
 }
 
 void dag_node::assign_node_id(std::size_t id) {

@@ -30,6 +30,7 @@
 
 #include "../executor.hpp"
 #include "../inorder_queue.hpp"
+#include "cuda_event.hpp"
 
 // Forward declare CUstream_st instead of including cuda_runtime_api.h.
 // It's not possible to include both HIP and CUDA headers since they
@@ -68,6 +69,7 @@ private:
   
   device_id _dev;
   CUstream_st* _stream;
+  cuda_node_event::timing_ref _timing_ref;
 };
 
 }

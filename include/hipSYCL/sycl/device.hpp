@@ -519,7 +519,7 @@ HIPSYCL_SPECIALIZE_GET_INFO(device, execution_capabilities)
 }
 
 HIPSYCL_SPECIALIZE_GET_INFO(device, queue_profiling)
-{ return false; }
+{ return true; }
 
 HIPSYCL_SPECIALIZE_GET_INFO(device, built_in_kernels)
 { return std::vector<string_class>{}; }

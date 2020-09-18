@@ -78,6 +78,13 @@ cuda_queue::cuda_queue(device_id dev) : _dev{dev} {
                    error_info{"cuda_queue: Couldn't construct backend stream",
                               error_code{"CUDA", err}});
   }
+
+  auto ref_event = insert_event(); // TODO virtual -> final?
+  ref_event->wait();
+  _timing_ref = cuda_node_event::timing_ref{
+    std::chrono::steady_clock::now(),
+    std::shared_ptr<cuda_node_event>(cast<cuda_node_event>(ref_event.release())),
+  };
 }
 
 CUstream_st* cuda_queue::get_stream() const { return _stream; }
@@ -113,7 +120,7 @@ std::unique_ptr<dag_node_event> cuda_queue::insert_event() {
     return nullptr;
   }
 
-  return std::make_unique<cuda_node_event>(_dev, evt);
+  return std::make_unique<cuda_node_event>(_dev, evt, &_timing_ref);
 }
 
 result cuda_queue::submit_memcpy(const memcpy_operation & op) {

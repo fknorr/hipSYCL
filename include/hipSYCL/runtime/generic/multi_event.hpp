@@ -54,6 +54,17 @@ public:
       evt->wait();
   }
 
+  std::optional<clock::time_point> get_completion_time() const override {
+    clock::time_point latest{}; // default-initialized to epoch
+    for (auto& evt : _events) {
+      auto evt_completion_time = evt->get_completion_time();
+      if (evt_completion_time == std::nullopt)
+        return std::nullopt;
+      latest = std::max(latest, *evt_completion_time);
+    }
+    return latest;
+  }
+
   virtual ~dag_multi_node_event() {}
 
   void add_event(std::shared_ptr<dag_node_event> evt){
