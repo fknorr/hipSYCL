@@ -16,6 +16,7 @@ if(NOT ${HIPSYCL_RT_SANITIZE} STREQUAL "")
   set(HIPSYCL_RT_EXTRA_LINKER_FLAGS "-fsanitize=${HIPSYCL_RT_SANITIZE}")
 endif()
 
+file(GLOB_RECURSE HEADERS "${CMAKE_SOURCE_DIR}/include/*.hpp")
 add_library(hipSYCL-rt SHARED
   application.cpp
   runtime.cpp
@@ -39,7 +40,8 @@ add_library(hipSYCL-rt SHARED
   settings.cpp
   generic/async_worker.cpp
   hw_model/memcpy.cpp
-  serialization/serialization.cpp)
+  serialization/serialization.cpp
+    ${HEADERS})
 
 target_compile_options(hipSYCL-rt PRIVATE ${HIPSYCL_RT_EXTRA_CXX_FLAGS})
 target_link_libraries(hipSYCL-rt PRIVATE ${HIPSYCL_RT_EXTRA_LINKER_FLAGS} Threads::Threads)

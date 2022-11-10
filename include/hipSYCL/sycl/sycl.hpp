@@ -96,6 +96,7 @@
 #include "backend_interop.hpp"
 #include "interop_handle.hpp"
 #include "buffer_explicit_behavior.hpp"
+#include "profile.hpp"
 
 #endif
 
