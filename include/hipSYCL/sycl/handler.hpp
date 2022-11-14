@@ -73,7 +73,7 @@ namespace detail {
 
 template <int Dim> struct accessor_data {
   std::shared_ptr<rt::buffer_data_region> mem;
-  
+
   sycl::id<Dim> offset;
   sycl::range<Dim> range;
 
@@ -114,7 +114,7 @@ class handler {
     size_t element_size = data.mem->get_element_size();
 
     const rt::range<Dim> buffer_shape = rt::make_range(acc.get_buffer_shape());
-    
+
     auto req = std::make_unique<rt::buffer_memory_requirement>(
       data.mem,
       detail::get_effective_offset<typename AccessorType::value_type>(
@@ -471,6 +471,12 @@ public:
         std::move(explicit_copy), _requirements, _execution_hints);
 
     _command_group_nodes.push_back(node);
+
+    profile::copy_task_type ctt;
+    ctt.buffer_from = -1;
+    ctt.buffer_to = -1;
+    ctt.bytes = get_range(src).size() * data_src->get_element_size();
+    _profile_task_type = ctt;
   }
 
   template <typename T, int dim, access::mode mode, access::target tgt,
@@ -482,7 +488,7 @@ public:
   template <typename T, int dim, access::mode mode, access::target tgt,
             accessor_variant variant>
   void update(accessor<T, dim, mode, tgt, variant> acc) {
-    
+
     if(!_execution_hints.has_hint<rt::hints::bind_to_device>())
       throw invalid_parameter_error{"handler: device update() is unsupported "
                                     "for queues not bound to devices"};
@@ -490,6 +496,10 @@ public:
     update_dev(
         _execution_hints.get_hint<rt::hints::bind_to_device>()->get_device_id(),
         acc);
+
+    profile::update_host_task_type uhtt;
+    uhtt.buffer = -1;
+    _profile_task_type = uhtt;
   }
 
   /// \todo fill() on host accessors can be optimized to use
@@ -508,6 +518,11 @@ public:
         get_offset(dest), get_range(dest),
         get_preferred_group_size<dim>(),
         detail::kernels::fill_kernel{dest, src});
+
+    profile::fill_task_type ftt;
+    ftt.buffer = -1;
+    ftt.bytes = get_range(dest) * sizeof(T);
+    _profile_task_type = ftt;
   }
 
   // ------ USM functions ------
@@ -522,7 +537,7 @@ public:
 
     rt::device_id queue_dev =
         _execution_hints.get_hint<rt::hints::bind_to_device>()->get_device_id();
-  
+
 
     auto determine_ptr_device = [&, this](const void *ptr) {
       usm::alloc alloc_type = get_pointer_type(ptr, _ctx);
@@ -560,8 +575,10 @@ public:
         std::move(op), _requirements, _execution_hints);
 
     _command_group_nodes.push_back(node);
+
+    _profile_task_type = profile::usm_task_type::copy;
   }
-  
+
   template <typename T>
   void copy(const T* src, T* dest, std::size_t count) {
     this->memcpy(static_cast<void*>(dest),
@@ -573,7 +590,7 @@ public:
     // For special cases we can map this to a potentially more low-level memset
     if (sizeof(T) == 1) {
       unsigned char val = *reinterpret_cast<const unsigned char*>(&pattern);
-      
+
       memset(ptr, static_cast<int>(val), count);
     } else {
       T *typed_ptr = static_cast<T *>(ptr);
@@ -588,10 +605,12 @@ public:
           get_preferred_group_size<1>(),
           detail::kernels::fill_kernel_usm{typed_ptr, pattern});
     }
+
+    _profile_task_type = profile::usm_task_type::fill;
   }
 
   void memset(void *ptr, int value, std::size_t num_bytes) {
-   
+
     rt::dag_build_guard build{_rt->dag()};
 
     if(!_execution_hints.has_hint<rt::hints::bind_to_device>())
@@ -605,6 +624,8 @@ public:
         std::move(op), _requirements, _execution_hints);
 
     _command_group_nodes.push_back(node);
+
+    _profile_task_type = profile::usm_task_type::memset;
   }
 
   void prefetch_host(const void *ptr, std::size_t num_bytes) {
@@ -640,6 +661,8 @@ public:
         std::move(op), _requirements, hints);
 
     _command_group_nodes.push_back(node);
+
+    _profile_task_type = profile::usm_task_type::prefetch;
   }
 
   void prefetch(const void *ptr, std::size_t num_bytes) {
@@ -668,6 +691,8 @@ public:
 
       _command_group_nodes.push_back(node);
     }
+
+    _profile_task_type = profile::usm_task_type::prefetch;
   }
 
   void mem_advise(const void *addr, std::size_t num_bytes, int advice) {
@@ -687,10 +712,14 @@ public:
     auto custom_kernel_op = rt::make_operation<rt::kernel_operation>(
         typeid(f).name(),
         glue::make_kernel_launchers<class _unnamed, rt::kernel_type::custom>(
-            sycl::id<3>{}, sycl::range<3>{}, 
+            sycl::id<3>{}, sycl::range<3>{},
             sycl::range<3>{},
             0, f),
         _requirements);
+
+    _profile_task_type = profile::hipSYCL_custom_operation_task_type {
+        dynamic_cast<rt::kernel_operation*>(custom_kernel_op.get())->get_global_kernel_name()
+    };
 
     rt::dag_node_ptr node = build.builder()->add_kernel(
         std::move(custom_kernel_op), _requirements, _execution_hints);
@@ -832,6 +861,12 @@ private:
         std::move(explicit_copy), _requirements, _execution_hints);
 
     _command_group_nodes.push_back(node);
+
+    profile::copy_task_type ctt;
+    ctt.buffer_from = -1;
+    ctt.buffer_to = -1;
+    ctt.bytes = get_range(src).size() * data_src->get_element_size();
+    _profile_task_type = ctt;
   }
 
   template <typename T, int dim, access::mode mode, access::target tgt,
@@ -867,6 +902,12 @@ private:
         std::move(explicit_copy), _requirements, _execution_hints);
 
     _command_group_nodes.push_back(node);
+
+    profile::copy_task_type ctt;
+    ctt.buffer_from = -1;
+    ctt.buffer_to = -1;
+    ctt.bytes = get_range(src).size() * dest->get_element_size();
+    _profile_task_type = ctt;
   }
 
   template <typename T, int dim, access::mode mode, access::target tgt,
@@ -900,7 +941,7 @@ private:
   const std::vector<rt::dag_node_ptr>& get_cg_nodes() const
   { return _command_group_nodes; }
 
-  
+
   handler(const context &ctx, async_handler handler,
           const rt::execution_hints &hints, rt::runtime* rt)
       : _ctx{ctx}, _handler{handler}, _execution_hints{hints},
@@ -928,12 +969,12 @@ private:
       return _preferred_group_size3d;
     }
   }
-  
+
   template<int Dim>
   void set_preferred_group_size(range<Dim> r) {
     get_preferred_group_size<Dim>() = r;
   }
-  
+
   const context _ctx;
   detail::local_memory_allocator _local_mem_allocator;
   async_handler _handler;
@@ -947,6 +988,8 @@ private:
   range<3> _preferred_group_size3d;
 
   rt::runtime* _rt;
+
+  profile::task_type _profile_task_type;
 };
 
 namespace detail::handler {

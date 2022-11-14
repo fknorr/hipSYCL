@@ -33,6 +33,7 @@
 
 #include "hints.hpp"
 #include "event.hpp"
+#include "hipSYCL/sycl/profile.hpp"
 
 
 namespace hipsycl {
@@ -125,6 +126,9 @@ public:
   }
 
   runtime* get_runtime() const;
+
+  sycl::profile::identifier get_profile_id() const { return _profile_id; }
+
 private:
   execution_hints _hints;
   std::vector<std::weak_ptr<dag_node>> _requirements;
@@ -133,6 +137,7 @@ private:
   backend_executor *_assigned_executor;
   void* _assigned_execution_lane;
   std::size_t _assigned_execution_index;
+  sycl::profile::identifier _profile_id;
 
   std::shared_ptr<dag_node_event> _event;
   std::unique_ptr<operation> _operation;

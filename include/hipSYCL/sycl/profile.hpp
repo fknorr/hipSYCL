@@ -28,13 +28,15 @@
 #ifndef HIPSYCL_PROFILE_HPP
 #define HIPSYCL_PROFILE_HPP
 
-#include "buffer.hpp"
-#include "device.hpp"
-
 #include <string>
 #include <variant>
 #include <vector>
 
+// forward
+namespace hipsycl::sycl {
+    template<typename, int> class buffer;
+    class device;
+}
 
 namespace hipsycl::sycl::profile {
 
@@ -56,6 +58,9 @@ struct fill_task_type {
 struct update_host_task_type {
     identifier buffer;
 };
+struct hipSYCL_custom_operation_task_type {
+    std::string kernel_name;
+};
 enum class usm_task_type {
     malloc,
     malloc_host,
@@ -68,7 +73,7 @@ enum class usm_task_type {
     mem_advice,
 };
 using task_type = std::variant<kernel_task_type, host_task_type, fill_task_type, copy_task_type, update_host_task_type,
-    usm_task_type>;
+    usm_task_type, hipSYCL_custom_operation_task_type>;
 
 enum class device {
     host = 0,
@@ -118,10 +123,12 @@ class sink {
         virtual void idle_end(device device) = 0;
 };
 
-template<typename T, int Dims>
-void set_buffer_name(const buffer<T, Dims> &buf, std::string name);
-
 inline sink *the_sink = nullptr; // hack
+
+template<typename T, int Dims>
+void set_buffer_name(const buffer<T, Dims> &buf, std::string name) {
+  the_sink->set_buffer_name(-1, std::move(name));
+}
 
 }
 

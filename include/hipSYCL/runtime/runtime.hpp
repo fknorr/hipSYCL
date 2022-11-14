@@ -32,7 +32,9 @@
 #include "dag_manager.hpp"
 #include "backend.hpp"
 #include "settings.hpp"
+#include "hipSYCL/sycl/profile.hpp"
 
+#include <atomic>
 #include <memory>
 #include <iostream>
 
@@ -57,11 +59,15 @@ public:
 
   const backend_manager &backends() const { return _backends; }
 
+  sycl::profile::identifier create_profile_id() { return _next_profile_id++; }
+
 private:
   // !! Attention: order is important, as backends have to be still present,
   // when the dag_manager is destructed!
   backend_manager _backends;
   dag_manager _dag_manager;
+
+  std::atomic<sycl::profile::identifier> _next_profile_id{0};
 };
 
 

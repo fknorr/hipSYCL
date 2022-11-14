@@ -305,6 +305,16 @@ result cuda_queue::submit_memcpy(memcpy_operation & op, dag_node_ptr node) {
   return make_success();
 }
 
+void profile_task_begin(cudaStream_t, cudaError_t, void *const user_data) {
+  const auto node = static_cast<dag_node *>(user_data);
+  sycl::profile::the_sink->task_begin_execute(node->get_profile_id());
+}
+
+void profile_task_end(cudaStream_t, cudaError_t, void *const user_data) {
+  const auto node = static_cast<dag_node *>(user_data);
+  sycl::profile::the_sink->task_end_execute(node->get_profile_id());
+}
+
 result cuda_queue::submit_kernel(kernel_operation &op, dag_node_ptr node) {
 
   this->activate_device();
@@ -314,9 +324,12 @@ result cuda_queue::submit_kernel(kernel_operation &op, dag_node_ptr node) {
     return make_error(__hipsycl_here(), error_info{"Could not obtain backend kernel launcher"});
   l->set_params(this);
 
-  
+  cudaStreamAddCallback(_stream, profile_task_begin, node.get(), 0);
+
   cuda_instrumentation_guard instrumentation{this, op, node};
   l->invoke(node.get());
+
+  cudaStreamAddCallback(_stream, profile_task_end, node.get(), 0);
 
   return make_success();
 }
@@ -325,7 +338,10 @@ result cuda_queue::submit_prefetch(prefetch_operation& op, dag_node_ptr node) {
 #ifndef _WIN32
   
   cudaError_t err = cudaSuccess;
-  
+
+
+  cudaStreamAddCallback(_stream, profile_task_begin, node.get(), 0);
+
   cuda_instrumentation_guard instrumentation{this, op, node};
   if (op.get_target().is_host()) {
     err = cudaMemPrefetchAsync(op.get_pointer(), op.get_num_bytes(),
@@ -335,6 +351,7 @@ result cuda_queue::submit_prefetch(prefetch_operation& op, dag_node_ptr node) {
                                         _dev.get_id(), get_stream());
   }
 
+  cudaStreamAddCallback(_stream, profile_task_end, node.get(), 0);
 
   if (err != cudaSuccess) {
     return make_error(__hipsycl_here(),
@@ -351,10 +368,13 @@ result cuda_queue::submit_prefetch(prefetch_operation& op, dag_node_ptr node) {
 result cuda_queue::submit_memset(memset_operation &op, dag_node_ptr node) {
 
   cuda_instrumentation_guard instrumentation{this, op, node};
-  
+
+  cudaStreamAddCallback(_stream, profile_task_begin, node.get(), 0);
+
   cudaError_t err = cudaMemsetAsync(op.get_pointer(), op.get_pattern(),
                                     op.get_num_bytes(), get_stream());
-  
+
+  cudaStreamAddCallback(_stream, profile_task_end, node.get(), 0);
 
   if (err != cudaSuccess) {
     return make_error(__hipsycl_here(),
@@ -618,6 +638,8 @@ result cuda_code_object_invoker::submit_kernel(
   std::string kernel_name = kernel_body_name;
   if(kernel_name_tag.find("__hipsycl_unnamed_kernel") == std::string::npos)
     kernel_name = kernel_name_tag;
+
+  // TODO profile
 
   return _queue->submit_kernel_from_code_object(op, hcf_object, kernel_name,
                                                 num_groups, group_size,

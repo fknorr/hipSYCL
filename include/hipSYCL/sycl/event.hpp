@@ -81,7 +81,10 @@ public:
         _requires_runtime.get()->dag().flush_sync();
       
       assert(this->_node->is_submitted());
+
+      profile::the_sink->wait_begin({_node->get_profile_id()});
       this->_node->wait();
+      profile::the_sink->wait_end();
     }
   }
 
@@ -100,9 +103,16 @@ public:
     if(flush)
       requires_runtime.get()->dag().flush_sync();
 
+    std::vector<profile::identifier> event_ids;
+    for(const event& evt: eventList) {
+      event_ids.push_back(evt._node->get_profile_id());
+    }
+
+    profile::the_sink->wait_begin(std::move(event_ids));
     for(const event& evt: eventList){
       const_cast<event&>(evt).wait();
     }
+    profile::the_sink->wait_end();
   }
 
   void wait_and_throw()

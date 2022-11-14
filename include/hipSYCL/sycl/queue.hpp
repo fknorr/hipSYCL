@@ -38,6 +38,7 @@
 #include "hipSYCL/runtime/inorder_queue.hpp"
 #include "hipSYCL/runtime/runtime.hpp"
 #include "hipSYCL/sycl/backend.hpp"
+#include "hipSYCL/sycl/profile.hpp"
 #include "types.hpp"
 #include "exception.hpp"
 
@@ -67,7 +68,7 @@ class automatic_placeholder_requirement_impl;
 
 using queue_submission_hooks =
   function_set<sycl::handler&>;
-using queue_submission_hooks_ptr = 
+using queue_submission_hooks_ptr =
   shared_ptr_class<queue_submission_hooks>;
 
 }
@@ -287,7 +288,7 @@ public:
     auto devs = get_devices();
     if(devs.empty())
       return false;
-    
+
     for(const auto& d : devs) {
       if(!d.is_host())
         return false;
@@ -300,6 +301,8 @@ public:
   }
 
   void wait() {
+    profile::the_sink->wait_begin();
+
     if(_is_in_order) {
       rt::dag_node_ptr most_recent_event = nullptr;
       {
@@ -308,16 +311,18 @@ public:
         most_recent_event = _previous_submission->lock();
       }
       if(most_recent_event) {
-        
+
         if(!most_recent_event->is_submitted())
           _requires_runtime.get()->dag().flush_sync();
-        
+
         most_recent_event->wait();
       }
     } else {
       _requires_runtime.get()->dag().flush_sync();
       _requires_runtime.get()->dag().wait(_node_group_id);
     }
+
+    profile::the_sink->wait_end();
   }
 
   void wait_and_throw() {
@@ -338,7 +343,7 @@ public:
     std::lock_guard<std::mutex> lock{*_lock};
 
     rt::execution_hints hints = _default_hints;
-    
+
     if(prop_list.has_property<property::command_group::hipSYCL_retarget>()) {
 
       rt::device_id dev = detail::extract_rt_device(
@@ -378,7 +383,7 @@ public:
     assert(hints.has_hint<rt::hints::node_group>());
 
     handler cgh{get_context(), _handler, hints, _requires_runtime.get()};
-    
+
     apply_preferred_group_size<1>(prop_list, cgh);
     apply_preferred_group_size<2>(prop_list, cgh);
     apply_preferred_group_size<3>(prop_list, cgh);
@@ -386,7 +391,7 @@ public:
     this->get_hooks()->run_all(cgh);
 
     rt::dag_node_ptr node = execute_submission(cgf, cgh);
-    
+
     return event{node, _handler};
   }
 
@@ -456,7 +461,7 @@ public:
       // If we don't have a previous event or it's complete,
       // just return empty vector
       return std::vector<event>{};
-      
+
     } else {
       // for non-in-order queues we need to ask the runtime for
       // all nodes of this node group
@@ -498,9 +503,9 @@ public:
     });
   }
 
-  template <typename KernelName = __hipsycl_unnamed_kernel, 
+  template <typename KernelName = __hipsycl_unnamed_kernel,
             typename... ReductionsAndKernel, int Dims>
-  event parallel_for(range<Dims> NumWorkItems, 
+  event parallel_for(range<Dims> NumWorkItems,
                      const ReductionsAndKernel &... redu_kernel) {
     return this->submit([&](sycl::handler &cgh) {
       cgh.parallel_for<KernelName>(NumWorkItems, redu_kernel...);
@@ -646,24 +651,24 @@ public:
       cgh.memcpy(dest, src, num_bytes);
     });
   }
-  
+
   template <typename T>
   event copy(const T* src, T* dest, std::size_t count) {
-    return this->memcpy(static_cast<void*>(dest), 
+    return this->memcpy(static_cast<void*>(dest),
       static_cast<const void*>(src), count * sizeof(T));
   }
-  
+
   template <typename T>
-  event copy(const T* src, T* dest, std::size_t count, 
+  event copy(const T* src, T* dest, std::size_t count,
              event dependency) {
-    return this->memcpy(static_cast<void*>(dest), 
+    return this->memcpy(static_cast<void*>(dest),
       static_cast<const void*>(src), count * sizeof(T), dependency);
   }
-  
+
   template <typename T>
-  event copy(const T* src, T* dest, std::size_t count, 
+  event copy(const T* src, T* dest, std::size_t count,
              const std::vector<event>& dependencies) {
-    return this->memcpy(static_cast<void*>(dest), 
+    return this->memcpy(static_cast<void*>(dest),
       static_cast<const void*>(src), count * sizeof(T), dependencies);
   }
 
@@ -802,9 +807,9 @@ public:
   }
 
   /// Placeholder accessor shortcuts
-  
+
   // Explicit copy functions
-  
+
   template <typename T, int dim, access_mode mode, target tgt,
             accessor_variant isPlaceholder>
   event copy(accessor<T, dim, mode, tgt, isPlaceholder> src,
@@ -812,9 +817,9 @@ public:
     return this->submit([&](sycl::handler &cgh) {
       cgh.require(src);
       cgh.copy(src, dest);
-    });           
+    });
   }
-  
+
   template <typename T, int dim, access_mode mode, target tgt,
             accessor_variant isPlaceholder>
   event copy(shared_ptr_class<T> src,
@@ -822,7 +827,7 @@ public:
     return this->submit([&](sycl::handler &cgh) {
       cgh.require(dest);
       cgh.copy(src, dest);
-    });           
+    });
   }
 
   template <typename T, int dim, access_mode mode, target tgt,
@@ -832,7 +837,7 @@ public:
     return this->submit([&](sycl::handler &cgh) {
       cgh.require(src);
       cgh.copy(src, dest);
-    });     
+    });
   }
 
   template <typename T, int dim, access_mode mode, target tgt,
@@ -842,7 +847,7 @@ public:
     return this->submit([&](sycl::handler &cgh) {
       cgh.require(dest);
       cgh.copy(src, dest);
-    });             
+    });
   }
 
   template <typename T, int dim, access_mode srcMode, access_mode dstMode,
@@ -854,7 +859,7 @@ public:
       cgh.require(src);
       cgh.require(dest);
       cgh.copy(src, dest);
-    });  
+    });
   }
 
   template <typename T, int dim, access_mode mode, target tgt,
@@ -863,16 +868,16 @@ public:
     return this->submit([&](sycl::handler &cgh) {
       cgh.require(acc);
       cgh.update_host(acc);
-    });  
+    });
   }
-  
+
   template <typename T, int dim, access_mode mode, target tgt,
             accessor_variant isPlaceholder>
   event update(accessor<T, dim, mode, tgt, isPlaceholder> acc) {
     return this->submit([&](sycl::handler &cgh) {
       cgh.require(acc);
       cgh.update(acc);
-    });  
+    });
   }
 
   template <typename T, int dim, access_mode mode, target tgt,
@@ -881,7 +886,7 @@ public:
     return this->submit([&](sycl::handler &cgh) {
       cgh.require(dest);
       cgh.fill(dest, src);
-    });  
+    });
   }
 
   std::size_t hipSYCL_hash_code() const {
@@ -907,17 +912,24 @@ private:
       if(previous)
         cgh.depends_on(event{previous, _handler});
     }
-    
+
     cgf(cgh);
 
     rt::dag_node_ptr node = this->extract_dag_node(cgh);
     if (is_in_order()) {
       *_previous_submission = node;
     }
+
+    profile::task tsk;
+    tsk.id = node->get_profile_id();
+    tsk.type = cgh._profile_task_type;
+    tsk.executes_on = static_cast<profile::device>(node->get_assigned_device().get_id());
+    profile::the_sink->task_submit(std::move(tsk));
+
     return node;
   }
-      
-  bool is_device_in_context(const device &dev, const context &ctx) const {    
+
+  bool is_device_in_context(const device &dev, const context &ctx) const {
     std::vector<device> devices = ctx.get_devices();
     for (const auto context_dev : devices) {
       if (context_dev == dev)
@@ -927,7 +939,7 @@ private:
   }
 
   rt::dag_node_ptr extract_dag_node(sycl::handler& cgh) {
-  
+
     const std::vector<rt::dag_node_ptr>& dag_nodes =
       cgh.get_cg_nodes();
 
@@ -952,7 +964,7 @@ private:
   void init() {
     static std::atomic<std::size_t> node_group_id;
     _node_group_id = ++node_group_id;
-    
+
     HIPSYCL_DEBUG_INFO << "queue: Constructed queue with node group id "
                        << _node_group_id << std::endl;
 
@@ -993,7 +1005,7 @@ private:
               ->backends()
               .get(rt_dev.get_backend())
               ->create_inorder_executor(rt_dev, priority);
-      
+
       if(dedicated_executor) {
         _default_hints.add_hint(
             rt::make_execution_hint<rt::hints::prefer_executor>(
@@ -1011,7 +1023,7 @@ private:
     return _hooks;
   }
 
-  rt::runtime_keep_alive_token _requires_runtime;  
+  rt::runtime_keep_alive_token _requires_runtime;
   detail::queue_submission_hooks_ptr _hooks;
 
   rt::execution_hints _default_hints;
@@ -1052,7 +1064,7 @@ template<typename dataT, int dimensions, access::mode accessMode,
 class automatic_placeholder_requirement_impl
 {
 public:
-  automatic_placeholder_requirement_impl(sycl::queue &q, 
+  automatic_placeholder_requirement_impl(sycl::queue &q,
       sycl::accessor<dataT, dimensions, accessMode, accessTarget,
                 access::placeholder::true_t>* acc)
     : _acc{acc}, _is_required{false}, _hooks{q.get_hooks()}
@@ -1080,7 +1092,7 @@ public:
   }
 
   bool is_required() const { return _is_required; }
-  
+
 private:
   void acquire()
   {
@@ -1114,7 +1126,7 @@ public:
   using impl_type = detail::automatic_placeholder_requirement_impl<
     dataT,dimensions,accessMode,accessTarget>;
 
-  automatic_placeholder_requirement(queue &q, 
+  automatic_placeholder_requirement(queue &q,
       accessor<dataT, dimensions, accessMode, accessTarget,
                 access::placeholder::true_t>& acc)
   {
@@ -1146,7 +1158,7 @@ private:
 
 template<typename dataT, int dimensions, access::mode accessMode,
             access::target accessTarget>
-inline auto automatic_require(queue &q, 
+inline auto automatic_require(queue &q,
     accessor<dataT, dimensions, accessMode, accessTarget,access::placeholder::true_t>& acc)
 {
   using requirement_type = automatic_placeholder_requirement<
