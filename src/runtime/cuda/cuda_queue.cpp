@@ -305,14 +305,13 @@ result cuda_queue::submit_memcpy(memcpy_operation & op, dag_node_ptr node) {
   return make_success();
 }
 
-void profile_task_begin(cudaStream_t, cudaError_t, void *const user_data) {
-  const auto node = static_cast<dag_node *>(user_data);
-  sycl::profile::the_sink->task_begin_execute(node->get_profile_id());
-}
-
-void profile_task_end(cudaStream_t, cudaError_t, void *const user_data) {
-  const auto node = static_cast<dag_node *>(user_data);
-  sycl::profile::the_sink->task_end_execute(node->get_profile_id());
+template<typename F>
+void cudaStreamAddCallbackLambda(cudaStream_t stream, F f) {
+  cudaStreamAddCallback(stream, [](cudaStream_t, cudaError_t, void *const user_data) {
+      auto f = static_cast<F *>(user_data);
+      (*f)();
+      delete f;
+  }, new F(std::move(f)), 0);
 }
 
 result cuda_queue::submit_kernel(kernel_operation &op, dag_node_ptr node) {
@@ -324,12 +323,16 @@ result cuda_queue::submit_kernel(kernel_operation &op, dag_node_ptr node) {
     return make_error(__hipsycl_here(), error_info{"Could not obtain backend kernel launcher"});
   l->set_params(this);
 
-  cudaStreamAddCallback(_stream, profile_task_begin, node.get(), 0);
+  cudaStreamAddCallbackLambda(_stream, [id=node->get_profile_id()]{
+      sycl::profile::the_sink->task_begin_execute(id);
+  });
 
   cuda_instrumentation_guard instrumentation{this, op, node};
   l->invoke(node.get());
 
-  cudaStreamAddCallback(_stream, profile_task_end, node.get(), 0);
+  cudaStreamAddCallbackLambda(_stream, [id = node->get_profile_id()] {
+      sycl::profile::the_sink->task_end_execute(id);
+  });
 
   return make_success();
 }
@@ -339,8 +342,9 @@ result cuda_queue::submit_prefetch(prefetch_operation& op, dag_node_ptr node) {
   
   cudaError_t err = cudaSuccess;
 
-
-  cudaStreamAddCallback(_stream, profile_task_begin, node.get(), 0);
+  cudaStreamAddCallbackLambda(_stream, [id=node->get_profile_id()]{
+      sycl::profile::the_sink->task_begin_execute(id);
+  });
 
   cuda_instrumentation_guard instrumentation{this, op, node};
   if (op.get_target().is_host()) {
@@ -351,7 +355,9 @@ result cuda_queue::submit_prefetch(prefetch_operation& op, dag_node_ptr node) {
                                         _dev.get_id(), get_stream());
   }
 
-  cudaStreamAddCallback(_stream, profile_task_end, node.get(), 0);
+  cudaStreamAddCallbackLambda(_stream, [id = node->get_profile_id()] {
+      sycl::profile::the_sink->task_end_execute(id);
+  });
 
   if (err != cudaSuccess) {
     return make_error(__hipsycl_here(),
@@ -369,12 +375,16 @@ result cuda_queue::submit_memset(memset_operation &op, dag_node_ptr node) {
 
   cuda_instrumentation_guard instrumentation{this, op, node};
 
-  cudaStreamAddCallback(_stream, profile_task_begin, node.get(), 0);
+  cudaStreamAddCallbackLambda(_stream, [id=node->get_profile_id()]{
+      sycl::profile::the_sink->task_begin_execute(id);
+  });
 
   cudaError_t err = cudaMemsetAsync(op.get_pointer(), op.get_pattern(),
                                     op.get_num_bytes(), get_stream());
 
-  cudaStreamAddCallback(_stream, profile_task_end, node.get(), 0);
+  cudaStreamAddCallbackLambda(_stream, [id=node->get_profile_id()]{
+      sycl::profile::the_sink->task_end_execute(id);
+  });
 
   if (err != cudaSuccess) {
     return make_error(__hipsycl_here(),

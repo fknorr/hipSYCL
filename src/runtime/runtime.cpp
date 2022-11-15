@@ -47,4 +47,9 @@ runtime::~runtime()
 
 
 }
+
+namespace sycl::profile {
+sink *the_sink;
+}
+
 }

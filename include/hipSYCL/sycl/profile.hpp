@@ -34,7 +34,7 @@
 
 // forward
 namespace hipsycl::sycl {
-    template<typename, int> class buffer;
+    template<typename, int, typename> class buffer;
     class device;
 }
 
@@ -123,10 +123,10 @@ class sink {
         virtual void idle_end(device device) = 0;
 };
 
-inline sink *the_sink = nullptr; // hack
+extern sink *the_sink; // hack
 
-template<typename T, int Dims>
-void set_buffer_name(const buffer<T, Dims> &buf, std::string name) {
+template<typename T, int Dims, typename Allocator>
+void set_buffer_name(const buffer<T, Dims, Allocator> &buf, std::string name) {
   the_sink->set_buffer_name(-1, std::move(name));
 }
 
