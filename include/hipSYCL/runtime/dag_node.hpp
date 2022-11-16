@@ -127,7 +127,9 @@ public:
 
   runtime* get_runtime() const;
 
-  sycl::profile::identifier get_profile_id() const { return _profile_id; }
+  std::optional<sycl::profile::identifier> get_profile_id() const { return _profile_id; }
+
+  void set_profile_id(sycl::profile::identifier id) { _profile_id = id; }
 
 private:
   execution_hints _hints;
@@ -137,7 +139,7 @@ private:
   backend_executor *_assigned_executor;
   void* _assigned_execution_lane;
   std::size_t _assigned_execution_index;
-  sycl::profile::identifier _profile_id;
+  std::optional<sycl::profile::identifier> _profile_id;
 
   std::shared_ptr<dag_node_event> _event;
   std::unique_ptr<operation> _operation;

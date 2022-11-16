@@ -103,16 +103,23 @@ struct host_access {
     std::vector<identifier> dependencies;
 };
 
+enum class device_id: size_t {};
+enum class backend_queue_id: size_t {};
+
 class sink {
     public:
         virtual ~sink() = default;
-        virtual void register_device(identifier device_id, const sycl::device &device) = 0;
+        virtual device_id register_device(std::string name) = 0;
+        virtual backend_queue_id register_device_queue(device_id device, bool in_order) = 0;
         virtual void set_buffer_name(identifier buffer_id, std::string name) = 0;
-        virtual void task_submit(task task) = 0;
-        virtual void task_begin_execute(identifier task_id) = 0;
-        virtual void task_end_execute(identifier task_id) = 0;
-        virtual void transfer_begin(transfer transfer) = 0;
-        virtual void transfer_end(identifier transfer_id) = 0;
+        virtual void task_submit_begin(identifier task_id) = 0;
+        virtual void task_submit_end(task task) = 0;
+        virtual void task_schedule_begin(identifier task_id) = 0;
+        virtual void task_schedule_end(identifier task) = 0;
+        virtual void task_execute_begin(backend_queue_id backend_queue, identifier task_id) = 0;
+        virtual void task_execute_end(backend_queue_id backend_queue, identifier task_id) = 0;
+        virtual void transfer_begin(backend_queue_id backend_queue, transfer transfer) = 0;
+        virtual void transfer_end(backend_queue_id backend_queue, identifier transfer_id) = 0;
         virtual void host_access_request(host_access access) = 0;
         virtual void host_access_begin(identifier access_id) = 0;
         virtual void host_access_end(identifier access_id) = 0;

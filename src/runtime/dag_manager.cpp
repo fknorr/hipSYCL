@@ -120,6 +120,8 @@ void dag_manager::flush_async()
         // the nodes in the order they were submitted. This
         // makes it safe to submit them in this order to the direct scheduler.
         for(auto node : new_dag.get_command_groups()){
+          sycl::profile::the_sink->task_schedule_begin(node->get_profile_id().value());
+
           HIPSYCL_DEBUG_INFO
                 << "dag_manager [async]: Submitting node to scheduler!"
                 << std::endl;
@@ -128,6 +130,8 @@ void dag_manager::flush_async()
           } else if(stype == scheduler_type::unbound) {
             _unbound_scheduler.submit(node);
           }
+
+          sycl::profile::the_sink->task_schedule_end(node->get_profile_id().value());
         }
         HIPSYCL_DEBUG_INFO << "dag_manager [async]: DAG flush complete."
                           << std::endl;

@@ -33,6 +33,7 @@
 #include <memory>
 
 #include "../hardware.hpp"
+#include "../../sycl/profile.hpp"
 
 struct cudaDeviceProp;
 

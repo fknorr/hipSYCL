@@ -340,6 +340,9 @@ public:
 
   template <typename T>
   event submit(const property_list& prop_list, T cgf) {
+    const auto pid = _requires_runtime.get()->create_profile_id();
+    profile::the_sink->task_submit_begin(pid);
+
     std::lock_guard<std::mutex> lock{*_lock};
 
     rt::execution_hints hints = _default_hints;
@@ -391,6 +394,13 @@ public:
     this->get_hooks()->run_all(cgh);
 
     rt::dag_node_ptr node = execute_submission(cgf, cgh);
+    node->set_profile_id(pid);
+
+    profile::task tsk;
+    tsk.id = pid;
+    tsk.type = cgh._profile_task_type;
+    tsk.executes_on = static_cast<profile::device>(node->get_assigned_device().get_id());
+    profile::the_sink->task_submit_end(std::move(tsk));
 
     return event{node, _handler};
   }
@@ -919,12 +929,6 @@ private:
     if (is_in_order()) {
       *_previous_submission = node;
     }
-
-    profile::task tsk;
-    tsk.id = node->get_profile_id();
-    tsk.type = cgh._profile_task_type;
-    tsk.executes_on = static_cast<profile::device>(node->get_assigned_device().get_id());
-    profile::the_sink->task_submit(std::move(tsk));
 
     return node;
   }

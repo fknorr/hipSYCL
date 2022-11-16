@@ -82,7 +82,7 @@ public:
       
       assert(this->_node->is_submitted());
 
-      profile::the_sink->wait_begin({_node->get_profile_id()});
+      profile::the_sink->wait_begin({_node->get_profile_id().value() });
       this->_node->wait();
       profile::the_sink->wait_end();
     }
@@ -105,7 +105,7 @@ public:
 
     std::vector<profile::identifier> event_ids;
     for(const event& evt: eventList) {
-      event_ids.push_back(evt._node->get_profile_id());
+      event_ids.push_back(evt._node->get_profile_id().value());
     }
 
     profile::the_sink->wait_begin(std::move(event_ids));

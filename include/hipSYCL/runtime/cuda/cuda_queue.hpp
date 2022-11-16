@@ -118,6 +118,7 @@ private:
   cuda_code_object_invoker _code_object_invoker;
   host_timestamped_event _reference_event;
   cuda_backend* _backend;
+  sycl::profile::backend_queue_id _profile_device_queue_id;
 };
 
 }

@@ -44,7 +44,7 @@ dag_node::dag_node(const execution_hints &hints,
                    std::unique_ptr<operation> op,
                    runtime* rt)
     : _hints{hints},
-      _assigned_executor{nullptr}, _profile_id{rt->create_profile_id()}, _event{nullptr}, _operation{std::move(op)},
+      _assigned_executor{nullptr}, _event{nullptr}, _operation{std::move(op)},
       _is_submitted{false}, _is_complete{false}, _is_virtual{false},
       _is_cancelled{false}, _rt{rt} {
   
