@@ -42,11 +42,12 @@ namespace rt {
 dag_node::dag_node(const execution_hints &hints,
                    const std::vector<dag_node_ptr> &requirements,
                    std::unique_ptr<operation> op,
-                   runtime* rt)
+                   runtime* rt,
+                   std::optional<sycl::profile::command_group_id> profile_cgid)
     : _hints{hints},
       _assigned_executor{nullptr}, _event{nullptr}, _operation{std::move(op)},
       _is_submitted{false}, _is_complete{false}, _is_virtual{false},
-      _is_cancelled{false}, _rt{rt} {
+      _is_cancelled{false}, _rt{rt}, _profile_cgid(profile_cgid) {
   
   for(const auto& req : requirements)
     _requirements.push_back(req);

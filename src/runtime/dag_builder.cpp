@@ -131,7 +131,8 @@ dag_builder::dag_builder(runtime *rt) : _rt{rt} {}
 
 dag_node_ptr dag_builder::build_node(std::unique_ptr<operation> op,
                                      const requirements_list& requirements,
-                                     const execution_hints& hints)
+                                     const execution_hints& hints,
+                                     std::optional<sycl::profile::command_group_id> profile_cgid)
 {
   assert(op);
 
@@ -170,7 +171,7 @@ dag_node_ptr dag_builder::build_node(std::unique_ptr<operation> op,
   };
 
   auto operation_node = std::make_shared<dag_node>(
-      hints, requirements.get(), std::move(op), _rt);
+      hints, requirements.get(), std::move(op), _rt, profile_cgid);
   
   bool is_req = operation_node->get_operation()->is_requirement();
 
@@ -203,13 +204,14 @@ dag_node_ptr dag_builder::build_node(std::unique_ptr<operation> op,
 dag_node_ptr
 dag_builder::add_command_group(std::unique_ptr<operation> op,
                                const requirements_list &requirements,
-                               const execution_hints &hints)
+                               const execution_hints &hints,
+                               std::optional<sycl::profile::command_group_id> profile_cgid)
 {
   assert(op);
 
   std::lock_guard<std::mutex> lock{_mutex};
 
-  auto node = this->build_node(std::move(op), requirements, hints);
+  auto node = this->build_node(std::move(op), requirements, hints, profile_cgid);
   _current_dag.add_command_group(node);
 
   return node;
@@ -217,50 +219,56 @@ dag_builder::add_command_group(std::unique_ptr<operation> op,
 
 dag_node_ptr dag_builder::add_kernel(std::unique_ptr<operation> op,
                                      const requirements_list &requirements,
-                                     const execution_hints &hints)
+                                     const execution_hints &hints,
+                                     std::optional<sycl::profile::command_group_id> profile_cgid)
 {
   assert_is<kernel_operation>(op.get());
-  return add_command_group(std::move(op), requirements, hints);
+  return add_command_group(std::move(op), requirements, hints, profile_cgid);
 }
 
 dag_node_ptr dag_builder::add_memcpy(std::unique_ptr<operation> op,
                                      const requirements_list &requirements,
-                                     const execution_hints &hints)
+                                     const execution_hints &hints,
+                                     std::optional<sycl::profile::command_group_id> profile_cgid)
 {
   assert_is<memcpy_operation>(op.get());
-  return add_command_group(std::move(op), requirements, hints);
+  return add_command_group(std::move(op), requirements, hints, profile_cgid);
 }
 
 dag_node_ptr dag_builder::add_fill(std::unique_ptr<operation> op,
                                    const requirements_list &requirements,
-                                   const execution_hints &hints)
+                                   const execution_hints &hints,
+                                   std::optional<sycl::profile::command_group_id> profile_cgid)
 {
   assert_is<kernel_operation>(op.get());
-  return add_command_group(std::move(op), requirements, hints);
+  return add_command_group(std::move(op), requirements, hints, profile_cgid);
 }
 
 dag_node_ptr dag_builder::add_prefetch(std::unique_ptr<operation> op,
                                       const requirements_list& requirements,
-                                      const execution_hints& hints)
+                                      const execution_hints& hints,
+                                      std::optional<sycl::profile::command_group_id> profile_cgid)
 {
   assert_is<prefetch_operation>(op.get());
-  return add_command_group(std::move(op), requirements, hints);
+  return add_command_group(std::move(op), requirements, hints, profile_cgid);
 }
 
 dag_node_ptr dag_builder::add_memset(std::unique_ptr<operation> op,
                                       const requirements_list& requirements,
-                                      const execution_hints& hints)
+                                      const execution_hints& hints,
+                                      std::optional<sycl::profile::command_group_id> profile_cgid)
 {
   assert_is<memset_operation>(op.get());
-  return add_command_group(std::move(op), requirements, hints);
+  return add_command_group(std::move(op), requirements, hints, profile_cgid);
 }
 
 dag_node_ptr dag_builder::add_explicit_mem_requirement(
     std::unique_ptr<operation> req,
-    const requirements_list &requirements, const execution_hints &hints)
+    const requirements_list &requirements, const execution_hints &hints,
+    std::optional<sycl::profile::command_group_id> profile_cgid)
 {
   assert_is<memory_requirement>(req.get());
-  return add_command_group(std::move(req), requirements, hints);
+  return add_command_group(std::move(req), requirements, hints, profile_cgid);
 }
 
 dag dag_builder::finish_and_reset()

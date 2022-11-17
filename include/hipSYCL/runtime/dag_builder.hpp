@@ -56,23 +56,29 @@ public:
 
   dag_node_ptr add_kernel(std::unique_ptr<operation> op,
                           const requirements_list& requirements,
-                          const execution_hints& hints = {});
+                          const execution_hints& hints = {},
+                          std::optional<sycl::profile::command_group_id> profile_cgid = {});
   dag_node_ptr add_memcpy(std::unique_ptr<operation> op,
                           const requirements_list& requirements,
-                          const execution_hints& hints = {});
+                          const execution_hints& hints = {},
+                          std::optional<sycl::profile::command_group_id> profile_cgid = {});
   dag_node_ptr add_fill(std::unique_ptr<operation> op,
                         const requirements_list& requirements,
-                        const execution_hints& hints = {});
+                        const execution_hints& hints = {},
+                          std::optional<sycl::profile::command_group_id> profile_cgid = {});
   dag_node_ptr add_prefetch(std::unique_ptr<operation> op,
                             const requirements_list &requirements,
-                            const execution_hints &hints = {});
+                            const execution_hints &hints = {},
+                          std::optional<sycl::profile::command_group_id> profile_cgid = {});
   dag_node_ptr add_memset(std::unique_ptr<operation> op,
                           const requirements_list &requirements,
-                          const execution_hints &hints = {});
+                          const execution_hints &hints = {},
+                          std::optional<sycl::profile::command_group_id> profile_cgid = {});
   dag_node_ptr
   add_explicit_mem_requirement(std::unique_ptr<operation> req,
                                const requirements_list &requirements,
-                               const execution_hints &hints = {});
+                               const execution_hints &hints = {},
+                          std::optional<sycl::profile::command_group_id> profile_cgid = {});
 
   dag finish_and_reset();
 
@@ -83,10 +89,12 @@ private:
 
   dag_node_ptr build_node(std::unique_ptr<operation> op,
                           const requirements_list &requirements,
-                          const execution_hints &hints);
+                          const execution_hints &hints,
+                          std::optional<sycl::profile::command_group_id> profile_cgid);
   dag_node_ptr add_command_group(std::unique_ptr<operation> op,
                                 const requirements_list& requirements,
-                                const execution_hints& hints = {});
+                                const execution_hints& hints = {},
+                                std::optional<sycl::profile::command_group_id> profile_cgid = {});
 
   mutable std::mutex _mutex;
   dag _current_dag;

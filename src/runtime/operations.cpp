@@ -73,7 +73,8 @@ void requirements_list::add_requirement(std::unique_ptr<requirement> req)
     execution_hints{}, 
     std::vector<dag_node_ptr>{},
     std::move(req),
-    _rt);
+    _rt,
+    std::nullopt);
   
   add_node_requirement(node);
 }

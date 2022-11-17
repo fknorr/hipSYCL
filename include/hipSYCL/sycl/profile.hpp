@@ -28,114 +28,83 @@
 #ifndef HIPSYCL_PROFILE_HPP
 #define HIPSYCL_PROFILE_HPP
 
+#include <optional>
 #include <string>
 #include <variant>
 #include <vector>
 
-// forward
-namespace hipsycl::sycl {
-    template<typename, int, typename> class buffer;
-    class device;
-}
 
 namespace hipsycl::sycl::profile {
 
-using identifier = uint64_t;
+enum class backend_queue_id : size_t {};
+enum class command_group_id : size_t {};
 
-struct kernel_task_type {
-    std::string kernel_name;
+enum class frontend_operation {
+    submit_command_group,
+    wait,
+    host_access,
 };
-struct host_task_type {};
-struct copy_task_type {
-    identifier buffer_from;
-    identifier buffer_to;
-    size_t bytes;
+
+inline std::string_view frontend_operation_string(frontend_operation op) {
+  switch (op) {
+    case frontend_operation::submit_command_group: return "submit command group";
+    case frontend_operation::wait: return "wait";
+    case frontend_operation::host_access: return "host access";
+  }
+}
+
+enum class runtime_operation {
+    hipSYCL_flush_dag,
 };
-struct fill_task_type {
-    identifier buffer;
-    size_t bytes;
-};
-struct update_host_task_type {
-    identifier buffer;
-};
-struct hipSYCL_custom_operation_task_type {
-    std::string kernel_name;
-};
-enum class usm_task_type {
-    malloc,
-    malloc_host,
-    malloc_device,
-    free,
+
+inline std::string_view runtime_operation_name(runtime_operation op) {
+  switch (op) {
+    case runtime_operation::hipSYCL_flush_dag: return "flush dag";
+  }
+}
+
+enum class backend_operation {
+    execute_kernel,
+    execute_host_task,
     copy,
-    memset,
     fill,
     prefetch,
-    mem_advice,
-};
-using task_type = std::variant<kernel_task_type, host_task_type, fill_task_type, copy_task_type, update_host_task_type,
-    usm_task_type, hipSYCL_custom_operation_task_type>;
-
-enum class device {
-    host = 0,
-};
-struct task {
-    identifier id;
-    task_type type;
-    device executes_on;
-    std::vector<identifier> dependencies;
+    hipSYCL_custom_operation,
 };
 
-enum class transfer_direction {
-    host_to_device,
-    device_to_host,
-    device_to_device,
-};
-struct transfer {
-    identifier id;
-    identifier buffer_id;
-    transfer_direction direction;
-    size_t bytes;
-    std::vector<identifier> dependencies;
-};
-
-struct host_access {
-    identifier buffer_id;
-    std::vector<identifier> dependencies;
-};
-
-enum class device_id: size_t {};
-enum class backend_queue_id: size_t {};
+inline std::string_view backend_operation_string(backend_operation op) {
+  switch (op) {
+    case backend_operation::execute_kernel: return "execute kernel";
+    case backend_operation::execute_host_task: return "execute host task";
+    case backend_operation::copy: return "copy";
+    case backend_operation::fill: return "fill";
+    case backend_operation::prefetch: return "prefetch";
+    case backend_operation::hipSYCL_custom_operation: return "custom operation";
+  }
+}
 
 class sink {
     public:
         virtual ~sink() = default;
-        virtual device_id register_device(std::string name) = 0;
-        virtual backend_queue_id register_device_queue(device_id device, bool in_order) = 0;
-        virtual void set_buffer_name(identifier buffer_id, std::string name) = 0;
-        virtual void task_submit_begin(identifier task_id) = 0;
-        virtual void task_submit_end(task task) = 0;
-        virtual void task_schedule_begin(identifier task_id) = 0;
-        virtual void task_schedule_end(identifier task) = 0;
-        virtual void task_execute_begin(backend_queue_id backend_queue, identifier task_id) = 0;
-        virtual void task_execute_end(backend_queue_id backend_queue, identifier task_id) = 0;
-        virtual void transfer_begin(backend_queue_id backend_queue, transfer transfer) = 0;
-        virtual void transfer_end(backend_queue_id backend_queue, identifier transfer_id) = 0;
-        virtual void host_access_request(host_access access) = 0;
-        virtual void host_access_begin(identifier access_id) = 0;
-        virtual void host_access_end(identifier access_id) = 0;
-        virtual void wait_begin() = 0;
-        virtual void wait_begin(std::vector<identifier> dependencies) = 0;
-        virtual void wait_end() = 0;
-        virtual void idle_begin(device device) = 0;
-        virtual void idle_end(device device) = 0;
+        virtual void register_backend_queue(backend_queue_id id, std::string name, bool in_order) = 0;
+        virtual void unregister_backend_queue(backend_queue_id id) = 0;
+        virtual void register_command_group(command_group_id id, std::optional<std::string> name) = 0;
+        virtual void unregister_command_group(command_group_id id) = 0;
+        virtual void register_runtime_thread(std::string name) = 0;
+        virtual void unregister_runtime_thread() = 0;
+
+        virtual void frontend_thread_begin(frontend_operation, std::vector<command_group_id> cgs) = 0;
+        virtual void frontend_thread_end() = 0;
+
+        virtual void runtime_thread_begin(runtime_operation, std::vector<command_group_id> cgs) = 0;
+        virtual void runtime_thread_end() = 0;
+
+        virtual void backend_queue_begin(backend_queue_id id, backend_operation operation,
+            std::vector<command_group_id> cgs) = 0;
+        virtual void backend_queue_end(backend_queue_id id) = 0;
 };
 
 extern sink *the_sink; // hack
-
-template<typename T, int Dims, typename Allocator>
-void set_buffer_name(const buffer<T, Dims, Allocator> &buf, std::string name) {
-  the_sink->set_buffer_name(-1, std::move(name));
-}
 
 }
 

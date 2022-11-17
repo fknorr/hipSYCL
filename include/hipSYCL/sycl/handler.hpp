@@ -471,12 +471,6 @@ public:
         std::move(explicit_copy), _requirements, _execution_hints);
 
     _command_group_nodes.push_back(node);
-
-    profile::copy_task_type ctt;
-    ctt.buffer_from = -1;
-    ctt.buffer_to = -1;
-    ctt.bytes = get_range(src).size() * data_src->get_element_size();
-    _profile_task_type = ctt;
   }
 
   template <typename T, int dim, access::mode mode, access::target tgt,
@@ -496,10 +490,6 @@ public:
     update_dev(
         _execution_hints.get_hint<rt::hints::bind_to_device>()->get_device_id(),
         acc);
-
-    profile::update_host_task_type uhtt;
-    uhtt.buffer = -1;
-    _profile_task_type = uhtt;
   }
 
   /// \todo fill() on host accessors can be optimized to use
@@ -518,11 +508,6 @@ public:
         get_offset(dest), get_range(dest),
         get_preferred_group_size<dim>(),
         detail::kernels::fill_kernel{dest, src});
-
-    profile::fill_task_type ftt;
-    ftt.buffer = -1;
-    ftt.bytes = get_range(dest) * sizeof(T);
-    _profile_task_type = ftt;
   }
 
   // ------ USM functions ------
@@ -572,11 +557,9 @@ public:
         source_location, dest_location, rt::embed_in_range3(range<1>{num_bytes}));
 
     rt::dag_node_ptr node = build.builder()->add_memcpy(
-        std::move(op), _requirements, _execution_hints);
+        std::move(op), _requirements, _execution_hints, _profile_cgid);
 
     _command_group_nodes.push_back(node);
-
-    _profile_task_type = profile::usm_task_type::copy;
   }
 
   template <typename T>
@@ -605,8 +588,6 @@ public:
           get_preferred_group_size<1>(),
           detail::kernels::fill_kernel_usm{typed_ptr, pattern});
     }
-
-    _profile_task_type = profile::usm_task_type::fill;
   }
 
   void memset(void *ptr, int value, std::size_t num_bytes) {
@@ -621,11 +602,9 @@ public:
         ptr, static_cast<unsigned char>(value), num_bytes);
 
     rt::dag_node_ptr node = build.builder()->add_memset(
-        std::move(op), _requirements, _execution_hints);
+        std::move(op), _requirements, _execution_hints, _profile_cgid);
 
     _command_group_nodes.push_back(node);
-
-    _profile_task_type = profile::usm_task_type::memset;
   }
 
   void prefetch_host(const void *ptr, std::size_t num_bytes) {
@@ -658,11 +637,9 @@ public:
         ptr, num_bytes, target_dev);
 
     rt::dag_node_ptr node = build.builder()->add_prefetch(
-        std::move(op), _requirements, hints);
+        std::move(op), _requirements, hints, _profile_cgid);
 
     _command_group_nodes.push_back(node);
-
-    _profile_task_type = profile::usm_task_type::prefetch;
   }
 
   void prefetch(const void *ptr, std::size_t num_bytes) {
@@ -687,12 +664,10 @@ public:
           ptr, num_bytes, executing_dev);
 
       rt::dag_node_ptr node = build.builder()->add_prefetch(
-          std::move(op), _requirements, _execution_hints);
+          std::move(op), _requirements, _execution_hints, _profile_cgid);
 
       _command_group_nodes.push_back(node);
     }
-
-    _profile_task_type = profile::usm_task_type::prefetch;
   }
 
   void mem_advise(const void *addr, std::size_t num_bytes, int advice) {
@@ -717,12 +692,12 @@ public:
             0, f),
         _requirements);
 
-    _profile_task_type = profile::hipSYCL_custom_operation_task_type {
+    profile::the_sink->register_command_group(_profile_cgid,
         dynamic_cast<rt::kernel_operation*>(custom_kernel_op.get())->get_global_kernel_name()
-    };
+    );
 
     rt::dag_node_ptr node = build.builder()->add_kernel(
-        std::move(custom_kernel_op), _requirements, _execution_hints);
+        std::move(custom_kernel_op), _requirements, _execution_hints, _profile_cgid);
     
     _command_group_nodes.push_back(node);
   }
@@ -785,7 +760,7 @@ private:
            dev);
 
     rt::dag_node_ptr node = build.builder()->add_explicit_mem_requirement(
-        std::move(explicit_requirement), _requirements, hints);
+        std::move(explicit_requirement), _requirements, hints, _profile_cgid);
 
     _command_group_nodes.push_back(node);
   }
@@ -806,8 +781,12 @@ private:
             reductions...),
         _requirements);
 
+    profile::the_sink->register_command_group(_profile_cgid,
+        dynamic_cast<rt::kernel_operation*>(kernel_op.get())->get_global_kernel_name()
+    );
+
     rt::dag_node_ptr node = build.builder()->add_kernel(
-        std::move(kernel_op), _requirements, _execution_hints);
+        std::move(kernel_op), _requirements, _execution_hints, _profile_cgid);
     
     _command_group_nodes.push_back(node);
 
@@ -858,15 +837,9 @@ private:
         source_location, dest_location, rt::embed_in_range3(get_range(src)));
 
     rt::dag_node_ptr node = build.builder()->add_memcpy(
-        std::move(explicit_copy), _requirements, _execution_hints);
+        std::move(explicit_copy), _requirements, _execution_hints, _profile_cgid);
 
     _command_group_nodes.push_back(node);
-
-    profile::copy_task_type ctt;
-    ctt.buffer_from = -1;
-    ctt.buffer_to = -1;
-    ctt.bytes = get_range(src).size() * data_src->get_element_size();
-    _profile_task_type = ctt;
   }
 
   template <typename T, int dim, access::mode mode, access::target tgt,
@@ -899,15 +872,9 @@ private:
         source_location, dest_location, rt::embed_in_range3(get_range(dest)));
 
     rt::dag_node_ptr node = build.builder()->add_memcpy(
-        std::move(explicit_copy), _requirements, _execution_hints);
+        std::move(explicit_copy), _requirements, _execution_hints, _profile_cgid);
 
     _command_group_nodes.push_back(node);
-
-    profile::copy_task_type ctt;
-    ctt.buffer_from = -1;
-    ctt.buffer_to = -1;
-    ctt.bytes = get_range(src).size() * dest->get_element_size();
-    _profile_task_type = ctt;
   }
 
   template <typename T, int dim, access::mode mode, access::target tgt,
@@ -943,10 +910,10 @@ private:
 
 
   handler(const context &ctx, async_handler handler,
-          const rt::execution_hints &hints, rt::runtime* rt)
+          const rt::execution_hints &hints, rt::runtime* rt, profile::command_group_id profile_cgid)
       : _ctx{ctx}, _handler{handler}, _execution_hints{hints},
         _preferred_group_size1d{}, _preferred_group_size2d{},
-        _preferred_group_size3d{}, _rt{rt}, _requirements{rt} {}
+        _preferred_group_size3d{}, _rt{rt}, _requirements{rt}, _profile_cgid(profile_cgid) {}
 
   template<int Dim>
   range<Dim>& get_preferred_group_size() {
@@ -989,7 +956,7 @@ private:
 
   rt::runtime* _rt;
 
-  profile::task_type _profile_task_type;
+  profile::command_group_id _profile_cgid;
 };
 
 namespace detail::handler {

@@ -51,6 +51,10 @@ dag_manager::dag_manager(runtime *rt)
     : _builder{std::make_unique<dag_builder>(rt)},
       _direct_scheduler{rt}, _unbound_scheduler{rt}, _rt{rt} {
   HIPSYCL_DEBUG_INFO << "dag_manager: DAG manager is alive!" << std::endl;
+
+  _worker([] {
+      sycl::profile::the_sink->register_runtime_thread("dag_manager");
+  });
 }
 
 dag_manager::~dag_manager()
@@ -61,6 +65,10 @@ dag_manager::~dag_manager()
   wait();
 
   HIPSYCL_DEBUG_INFO << "dag_manager: Shutdown." << std::endl;
+
+  _worker([] {
+      sycl::profile::the_sink->unregister_runtime_thread();
+  });
 }
 
 dag_builder* 
@@ -89,7 +97,16 @@ void dag_manager::flush_async()
     if(new_dag.num_nodes() > 0) {
       _worker([this, new_dag](){
         HIPSYCL_DEBUG_INFO << "dag_manager [async]: Flushing!" << std::endl;
-        
+
+        std::vector<sycl::profile::command_group_id> cgids;
+        for(const auto &node : new_dag.get_command_groups()) {
+          if (node->get_profile_command_group_id()) {
+            cgids.push_back(*node->get_profile_command_group_id());
+          }
+        }
+        sycl::profile::the_sink->runtime_thread_begin(sycl::profile::runtime_operation::hipSYCL_flush_dag,
+            std::move(cgids));
+
         for(dag_node_ptr req : new_dag.get_memory_requirements()){
           assert_is<memory_requirement>(req->get_operation());
 
@@ -120,8 +137,6 @@ void dag_manager::flush_async()
         // the nodes in the order they were submitted. This
         // makes it safe to submit them in this order to the direct scheduler.
         for(auto node : new_dag.get_command_groups()){
-          sycl::profile::the_sink->task_schedule_begin(node->get_profile_id().value());
-
           HIPSYCL_DEBUG_INFO
                 << "dag_manager [async]: Submitting node to scheduler!"
                 << std::endl;
@@ -130,8 +145,6 @@ void dag_manager::flush_async()
           } else if(stype == scheduler_type::unbound) {
             _unbound_scheduler.submit(node);
           }
-
-          sycl::profile::the_sink->task_schedule_end(node->get_profile_id().value());
         }
         HIPSYCL_DEBUG_INFO << "dag_manager [async]: DAG flush complete."
                           << std::endl;
@@ -151,6 +164,8 @@ void dag_manager::flush_async()
         // marks all its requirements as complete.
         this->_submitted_ops.async_wait_and_unregister(
             new_dag.get_command_groups());
+
+        sycl::profile::the_sink->runtime_thread_end();
       });
     }
   } else {

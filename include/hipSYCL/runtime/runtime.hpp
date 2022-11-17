@@ -59,7 +59,9 @@ public:
 
   const backend_manager &backends() const { return _backends; }
 
-  sycl::profile::identifier create_profile_id() { return _next_profile_id++; }
+  sycl::profile::command_group_id create_profile_command_group_id() {
+    return static_cast<sycl::profile::command_group_id>(_next_profile_command_group_id++);
+  }
 
 private:
   // !! Attention: order is important, as backends have to be still present,
@@ -67,7 +69,7 @@ private:
   backend_manager _backends;
   dag_manager _dag_manager;
 
-  std::atomic<sycl::profile::identifier> _next_profile_id{0};
+  std::atomic<size_t> _next_profile_command_group_id{0};
 };
 
 

@@ -107,9 +107,6 @@ cuda_hardware_context::cuda_hardware_context(int dev)
   _allocator = std::make_unique<cuda_allocator>(
       backend_descriptor{hardware_platform::cuda, api_platform::cuda}, _dev);
   _event_pool = std::make_unique<cuda_event_pool>(_dev);
-
-  const auto n = sycl::profile::the_sink->register_device("CUDA device " + std::to_string(dev));
-  assert(int(n) == dev);
 }
 
 cuda_allocator* cuda_hardware_context::get_allocator() const {

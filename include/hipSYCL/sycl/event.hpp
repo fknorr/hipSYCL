@@ -77,20 +77,33 @@ public:
   void wait()
   {
     if(this->_node){
+      std::vector<profile::command_group_id> cgids;
+      if (_node->get_profile_command_group_id()) { cgids.push_back(*_node->get_profile_command_group_id()); }
+      profile::the_sink->frontend_thread_begin(profile::frontend_operation::wait, std::move(cgids));
+
       if(!this->_node->is_submitted())
         _requires_runtime.get()->dag().flush_sync();
       
       assert(this->_node->is_submitted());
 
-      profile::the_sink->wait_begin({_node->get_profile_id().value() });
       this->_node->wait();
-      profile::the_sink->wait_end();
+
+      profile::the_sink->frontend_thread_end();
     }
   }
 
   static void wait(const vector_class<event> &eventList)
   {
     rt::runtime_keep_alive_token requires_runtime;
+
+    std::vector<profile::command_group_id> cgids;
+    for(const event& evt: eventList) {
+      if (evt._node->get_profile_command_group_id()) {
+        cgids.push_back(*evt._node->get_profile_command_group_id());
+      }
+    }
+    profile::the_sink->frontend_thread_begin(profile::frontend_operation::wait, std::move(cgids));
+
     // Only need a at most a single flush,
     // so check if any of the events are unsubmitted,
     // if so, perform a single flush.
@@ -103,16 +116,11 @@ public:
     if(flush)
       requires_runtime.get()->dag().flush_sync();
 
-    std::vector<profile::identifier> event_ids;
-    for(const event& evt: eventList) {
-      event_ids.push_back(evt._node->get_profile_id().value());
-    }
-
-    profile::the_sink->wait_begin(std::move(event_ids));
     for(const event& evt: eventList){
       const_cast<event&>(evt).wait();
     }
-    profile::the_sink->wait_end();
+
+    profile::the_sink->frontend_thread_end();
   }
 
   void wait_and_throw()

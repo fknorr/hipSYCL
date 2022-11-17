@@ -52,7 +52,8 @@ public:
   dag_node(const execution_hints& hints,
           const std::vector<dag_node_ptr>& requirements,
           std::unique_ptr<operation> op,
-          runtime* rt);
+          runtime* rt,
+          std::optional<sycl::profile::command_group_id> profile_cgid);
 
   ~dag_node();
 
@@ -127,9 +128,7 @@ public:
 
   runtime* get_runtime() const;
 
-  std::optional<sycl::profile::identifier> get_profile_id() const { return _profile_id; }
-
-  void set_profile_id(sycl::profile::identifier id) { _profile_id = id; }
+  std::optional<sycl::profile::command_group_id> get_profile_command_group_id() const { return _profile_cgid; }
 
 private:
   execution_hints _hints;
@@ -139,7 +138,6 @@ private:
   backend_executor *_assigned_executor;
   void* _assigned_execution_lane;
   std::size_t _assigned_execution_index;
-  std::optional<sycl::profile::identifier> _profile_id;
 
   std::shared_ptr<dag_node_event> _event;
   std::unique_ptr<operation> _operation;
@@ -155,7 +153,7 @@ private:
   std::atomic<bool> _is_cancelled;
 
   runtime* _rt;
-
+  std::optional<sycl::profile::command_group_id> _profile_cgid;
 };
 
 }

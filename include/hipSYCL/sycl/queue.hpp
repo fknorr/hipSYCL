@@ -301,7 +301,7 @@ public:
   }
 
   void wait() {
-    profile::the_sink->wait_begin();
+    profile::the_sink->frontend_thread_begin(profile::frontend_operation::wait, {});
 
     if(_is_in_order) {
       rt::dag_node_ptr most_recent_event = nullptr;
@@ -322,7 +322,7 @@ public:
       _requires_runtime.get()->dag().wait(_node_group_id);
     }
 
-    profile::the_sink->wait_end();
+    profile::the_sink->frontend_thread_end();
   }
 
   void wait_and_throw() {
@@ -340,8 +340,8 @@ public:
 
   template <typename T>
   event submit(const property_list& prop_list, T cgf) {
-    const auto pid = _requires_runtime.get()->create_profile_id();
-    profile::the_sink->task_submit_begin(pid);
+    const auto profile_cgid = _requires_runtime.get()->create_profile_command_group_id();
+    profile::the_sink->frontend_thread_begin(profile::frontend_operation::submit_command_group, {profile_cgid});
 
     std::lock_guard<std::mutex> lock{*_lock};
 
@@ -385,7 +385,7 @@ public:
     // Should always have node_group hint from default hints
     assert(hints.has_hint<rt::hints::node_group>());
 
-    handler cgh{get_context(), _handler, hints, _requires_runtime.get()};
+    handler cgh{get_context(), _handler, hints, _requires_runtime.get(), profile_cgid};
 
     apply_preferred_group_size<1>(prop_list, cgh);
     apply_preferred_group_size<2>(prop_list, cgh);
@@ -394,13 +394,8 @@ public:
     this->get_hooks()->run_all(cgh);
 
     rt::dag_node_ptr node = execute_submission(cgf, cgh);
-    node->set_profile_id(pid);
 
-    profile::task tsk;
-    tsk.id = pid;
-    tsk.type = cgh._profile_task_type;
-    tsk.executes_on = static_cast<profile::device>(node->get_assigned_device().get_id());
-    profile::the_sink->task_submit_end(std::move(tsk));
+    profile::the_sink->frontend_thread_end();
 
     return event{node, _handler};
   }
